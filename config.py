@@ -1,3 +1,2 @@
 # configurations
-
-ENDPOINT = 'TBD'
+ENDPOINT = "oe4.me"

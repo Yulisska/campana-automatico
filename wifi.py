@@ -6,8 +6,9 @@ import ujson
 
 wlan_networks = {
     "place#5": ['space4you', 'qwe123!@#'],
-    "place#6": ['NVK SOFIA', ''],
-    "place#7": ['iPhone Yulia', 'unknown'],
+    "place#6": ['NVK SOFIA', '011235813'],
+    "place#7": ['iPhone Yulia', 'kokoshnukyulichka888'],
+    
 }
 
 wlan = network.WLAN(network.STA_IF)
@@ -24,3 +25,4 @@ def reconnect(wlan, name='place#2'):
         time.sleep(1)
     led.off()
     return wlan.ifconfig()
+
