@@ -84,12 +84,20 @@ if True:
         arr = time.localtime()
         comment = my_ping['comment'] + "дата: {}".format(
             "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]))
+        print("Current time: {}".format(
+            "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])))
+        if arr[3]==14:
+            if arr[4]==59:
+                led.on()
+                time.sleep(7)
+                led.off()
+                time.sleep(60)
 
         request_url = 'https://{}/ping.php?addr={}&comment={}'.format(ENDPOINT, my_ping["addr"], comment)
         try:
-            led.on()
+            #led.on()
             r = urequests.get(request_url)  # .json()
-            led.off()
+            #led.off()
             timeout = 60
             # res = requests.post(request_url, data = "{'addr':'foo'}") #.json()
             print(r.content)
@@ -99,9 +107,12 @@ if True:
             timeout = 10
             print("Connection failure: ", "Is connected: {}, Status: {}\n".format(wlan.isconnected(), wlan.status()))
             reconnect(wlan)
-        time.sleep(timeout)
+        time.sleep(5)
+        arr = time.localtime()
+        print("Current time: {}".format(
+            "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])))
 
 print("it is over here...")
 # to do:
 # 1. read time table from https://docs.google.com/spreadsheets/d/1LX25qDzaKKtRPmRFZ9h7ZoTu1UjYz7yCt85Wwz13dbk/edit#gid=0
-# 2. control LED according to the time table 
+# 2. control LED according to the time table
