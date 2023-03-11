@@ -1,6 +1,7 @@
 from ds3231 import *
 from wifi import *
 from config import ENDPOINT
+from google_sheet import read_sheet
 
 led = machine.Pin("LED", machine.Pin.OUT)
 
@@ -67,6 +68,7 @@ sync_time()
 import urequests
 
 my_ping = {"addr": "Героїв Крут 27", "comment": "v4.0, IP: {}, ".format(cfg[0])}
+timetable = [] # розклад дзвінків
 
 import sys
 
@@ -77,6 +79,22 @@ print(sys.implementation)
 
 led = machine.Pin("LED", machine.Pin.OUT)
 
+def print_range(values):
+    global timetable
+    for r in values:
+        tmp = r[0]
+        (h, m) = tmp.split(':')
+        hour = int(h.strip())
+        minute = int(m.strip())
+        # print("\t {}:{}".format(hour, minute))
+        timetable.append( (hour, minute) )
+    print(timetable)
+    
+sheet_id= "1LX25qDzaKKtRPmRFZ9h7ZoTu1UjYz7yCt85Wwz13dbk"
+sheet_name= "розклад"
+range_name= "B2:B19"
+read_sheet(sheet_id, sheet_name, range_name, print_range)
+
 if True:
     timeout = 10
     while True:
@@ -86,12 +104,13 @@ if True:
             "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]))
         print("Current time: {}".format(
             "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])))
-        if arr[3]==14:
-            if arr[4]==59:
-                led.on()
-                time.sleep(7)
-                led.off()
-                time.sleep(60)
+        for (hour, minute) in timetable:
+            if arr[3]==hour:
+                if arr[4]==minute:
+                    led.on()
+                    time.sleep(7)
+                    led.off()
+                    time.sleep(20)
 
         request_url = 'https://{}/ping.php?addr={}&comment={}'.format(ENDPOINT, my_ping["addr"], comment)
         try:
