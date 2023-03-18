@@ -3,8 +3,10 @@ from wifi import *
 from config import ENDPOINT
 from google_sheet import read_sheet
 
-led = machine.Pin("LED", machine.Pin.OUT)
+relay_pin = 16
 
+led = machine.Pin("LED", machine.Pin.OUT)
+ring_pin=machine.Pin(relay_pin, machine.Pin.OUT)
 
 def sync_time():
     import time
@@ -69,7 +71,7 @@ import urequests
 
 my_ping = {"addr": "Героїв Крут 27", "comment": "v4.0, IP: {}, ".format(cfg[0])}
 timetable = [] # розклад дзвінків
-
+settings = {} # налаштування
 import sys
 
 print("Pico W")
@@ -90,10 +92,29 @@ def print_range(values):
         timetable.append( (hour, minute) )
     print(timetable)
     
+def print_settings(values):
+    global settings
+    for r in values:
+        if r[0]:
+            try:
+                settings[r[0]] = int(r[1])
+            except ValueError as err:
+                settings[r[0]] = r[1]
+        else:
+            break
+    print(settings)
+
+print("Reading timetable from Google Spreadsheet...")
 sheet_id= "1LX25qDzaKKtRPmRFZ9h7ZoTu1UjYz7yCt85Wwz13dbk"
 sheet_name= "розклад"
 range_name= "B2:B19"
 read_sheet(sheet_id, sheet_name, range_name, print_range)
+
+
+print("Reading settings from Google Spreadsheet...")
+sheet_name= "налаштування"
+range_name= "A1:B50"
+read_sheet(sheet_id, sheet_name, range_name, print_settings)
 
 if True:
     timeout = 10
@@ -108,16 +129,18 @@ if True:
             if arr[3]==hour:
                 if arr[4]==minute:
                     led.on()
-                    time.sleep(7)
+                    ring_pin.on()
+                    time.sleep(settings["ring_time"])
                     led.off()
-                    time.sleep(20)
+                    ring_pin.off()
+                    time.sleep(60)
 
         request_url = 'https://{}/ping.php?addr={}&comment={}'.format(ENDPOINT, my_ping["addr"], comment)
         try:
-            #led.on()
+            led.on()
             r = urequests.get(request_url)  # .json()
-            #led.off()
-            timeout = 60
+            led.off()
+            timeout = 10
             # res = requests.post(request_url, data = "{'addr':'foo'}") #.json()
             print(r.content)
             r.close()
