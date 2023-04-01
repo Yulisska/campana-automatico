@@ -7,7 +7,7 @@ import ujson
 wlan_networks = {
     "place#5": ['space4you', 'qwe123!@#'],
     "place#6": ['NVK SOFIA', '011235813'],
-    "place#7": ['iPhone Yulia', 'kokoshnukyulichka888'],
+    "place#7": ['iPhone', 'Yulisska13'],
     
 }
 

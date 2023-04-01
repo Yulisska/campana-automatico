@@ -21,7 +21,7 @@ def sync_time():
         print("OK")
         pico_rtc = machine.RTC()
         print("\tAdjusting to EEST timezone...", end='')
-        utc_shift = 2
+        utc_shift = 3
         tm = utime.localtime(utime.mktime(utime.localtime()) + utc_shift * 3600)
         tm = tm[0:3] + (0,) + tm[3:6] + (0,)
         pico_rtc.datetime(tm)
@@ -60,7 +60,7 @@ rtc = ds3231(I2C_PORT, I2C_SCL, I2C_SDA)  # constants defined in ds3231.py
 # connecting to WiFi
 cfg = [0]
 try:
-    cfg = reconnect(wlan, name="place#5")  # network defined in wifi.py
+    cfg = reconnect(wlan, name="place#7")  # network defined in wifi.py
 except Exception as e:
     print(e)
 
@@ -126,12 +126,15 @@ if True:
         print("Current time: {}".format(
             "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])))
         for (hour, minute) in timetable:
+#            print("Checking: {}:{} vs {}:{}".format(arr[3], arr[4], hour, minute))
             if arr[3]==hour:
                 if arr[4]==minute:
                     led.on()
                     ring_pin.on()
+                    print("ringing...")
                     time.sleep(settings["ring_time"])
                     led.off()
+                    print("ringing done...")
                     ring_pin.off()
                     time.sleep(60)
 
