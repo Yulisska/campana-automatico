@@ -11,6 +11,6 @@
 
 ## Наступні кроки 
 1. Зробити інструкцію
-2. Роздрукувати на 3D принтері дві копії [підставки](https://www.tinkercad.com/things/5LKxhPWFQmc-ingenious-juttuli/edit)
+2. Роздрукувати на 3D принтері дві копії [підставки](https://www.tinkercad.com/things/5LKxhPWFQmc-ingenious-juttuli/edit?sharecode=GFUpOzqvkZWZlkQQmy3_N0a0AI9FWWr-aJ3zIAjNJ74)
 3. Додати відключення дзвінка на канікулах
 4. Автоматичне оновлювання програми
