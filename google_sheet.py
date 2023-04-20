@@ -1,7 +1,7 @@
 import urequests
 import json
 
-def read_sheet(sheet_id, sheet_name, range_name, callback):
+def read_sheet(sheet_id, sheet_name, range_name, callback, online):
     # Replace with your own values
     SPREADSHEET_ID = sheet_id
     SHEET_NAME = sheet_name
@@ -10,12 +10,18 @@ def read_sheet(sheet_id, sheet_name, range_name, callback):
 
     # Use the Google Sheets API to get the data
     url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{RANGE_NAME}?key={GOOGLE_API_KEY}'
-    response = urequests.get(url)
+    if online:
+        response = urequests.get(url)
+        json_string = response.text
+    else:
+        json_string = r'{"values": []}'
 
     # Parse the JSON response
-    data = json.loads(response.text)
+    data = json.loads(json_string)
 
     # Print the values in the spreadsheet
     values = data['values']
+    print("Google: ", online, ", ", values)
     if callback:
-        callback(values)
+        return callback(values)
+    return None

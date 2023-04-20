@@ -1,163 +1,177 @@
 from ds3231 import *
 from wifi import *
-from config import ENDPOINT
-from google_sheet import read_sheet
+from config import *
+from google_sheet import *
+from utilities import *
 
-relay_pin = 16
+CONNECTED = False # чи є з'єднання з мережею Internet
+relay_pin = 16    # пін керування реле
+led_pin   = machine.Pin("LED", machine.Pin.OUT)     # пін керування світлодіодом на платі Raspberry Pi Pico W
+ring_pin  = machine.Pin(relay_pin, machine.Pin.OUT) # пін керування дзвінком (реле)
 
-led = machine.Pin("LED", machine.Pin.OUT)
-ring_pin=machine.Pin(relay_pin, machine.Pin.OUT)
-
-def sync_time():
-    import time
-    import os
-
-    try:
-        print("Sync time over the internet...")
-        led.on()
-        import ntptime
-        print("\tGetting time from NTP server...", end='')
-        ntptime.settime()  # this queries the time from an NTP server
-        print("OK")
-        pico_rtc = machine.RTC()
-        print("\tAdjusting to EEST timezone...", end='')
-        utc_shift = 3
-        tm = utime.localtime(utime.mktime(utime.localtime()) + utc_shift * 3600)
-        tm = tm[0:3] + (0,) + tm[3:6] + (0,)
-        pico_rtc.datetime(tm)
-        print("OK")
-        print("\tSetting external clock...", end='')
-        rtc.set_time_from_localtime()
-        print("OK")
-        print("Done")
-        led.off()
-    except Exception as e:
-        print(e)
-        print('Could not sync with time server.')
-    finally:
-        led.off()
-
-
-def scanning_I2C():
-    import machine
-    from ds3231 import I2C_SDA, I2C_SCL, I2C_PORT
-    sdaPIN = machine.Pin(I2C_SDA)
-    sclPIN = machine.Pin(I2C_SCL)
-
-    i2c = machine.I2C(I2C_PORT, sda=sdaPIN, scl=sclPIN, freq=400000)
-    print('scanning i2c bus...')
-    devices = i2c.scan()
-
-    print("Found: ", len(devices), " devices")
-
-    for d in devices:
-        print("Decimal address: ", d, " HEX: ", hex(d))
-
+my_ping = {"addr": "Героїв Крут 27", "comment": "v4.0"}
+timetable = [] # розклад дзвінків
+settings = {} # налаштування
 
 # Real Time Clock (external)
 rtc = ds3231(I2C_PORT, I2C_SCL, I2C_SDA)  # constants defined in ds3231.py
 
-# connecting to WiFi
-cfg = [0]
-try:
-    cfg = reconnect(wlan, name="place#7")  # network defined in wifi.py
-except Exception as e:
-    print(e)
+def is_connected():
+    global CONNECTED
+    return CONNECTED == True
 
-sync_time()
 
-# Make GET request
-import urequests
+def sync_time():
+    if not is_connected():
+        print("Sync time skipped: there is not Internet connection.")
+        return
 
-my_ping = {"addr": "Героїв Крут 27", "comment": "v4.0, IP: {}, ".format(cfg[0])}
-timetable = [] # розклад дзвінків
-settings = {} # налаштування
-import sys
+    try:
+        import time
+        import os
+        from utilities import eesttime, localtime_to_dttm_string
 
-print("Pico W")
-print(sys.implementation)
+        print("Sync time over the internet...")
+        led_pin.on()
+        import ntptime
+        print("\tGetting time from NTP server... ", end='')
+        ntptime.settime()  # this queries the time from an NTP server
+        print("OK")
+        print("\tAdjusting to EEST timezone with DST... ", end='')
+        eest_dttm = eesttime()
+        print( localtime_to_dttm_string(eest_dttm) )
+        print("\tUpdating internal RTC clock...", end='')
+        pico_rtc = machine.RTC()
+        tm = eest_dttm
+        tm = tm[0:3] + (0,) + tm[3:6] + (0,)
+        pico_rtc.datetime(tm)
+        print("OK")
+        print("\tSetting external RTC clock...", end='')
+        rtc.set_time_from_localtime()
+        print("OK")
+        rtc.read_time()
+        print("Done")
+        led_pin.off()
+    except Exception as e:
+        print(e)
+        print('Could not sync with time server.')
+        print('Reading date from external RTC clock...');
+    finally:
+        led_pin.off()
 
-# r = requests.post(request_url, headers = {'content-type': 'application/json'}, data = post_data) #.json()
-
-led = machine.Pin("LED", machine.Pin.OUT)
-
-def print_range(values):
-    global timetable
-    for r in values:
-        tmp = r[0]
-        (h, m) = tmp.split(':')
-        hour = int(h.strip())
-        minute = int(m.strip())
-        # print("\t {}:{}".format(hour, minute))
-        timetable.append( (hour, minute) )
-    print(timetable)
-    
-def print_settings(values):
-    global settings
-    for r in values:
-        if r[0]:
-            try:
-                settings[r[0]] = int(r[1])
-            except ValueError as err:
-                settings[r[0]] = r[1]
-        else:
+def connect():
+    global CONNECTED
+    # connecting to WiFi
+    print("[WLAN] connected: ", wlan.isconnected(), " status: ", wlan.status())
+    if wlan.isconnected():
+        CONNECTED = True
+        return wlan.ifconfig()
+    else:
+        CONNECTED = False
+    cfg = [0]
+    networks = list(wlan_networks.keys()) # networks are defined in wifi.py
+    print(networks)
+    attempts = len(networks)
+    index = 0
+    while attempts > 0:
+        attempts = attempts - 1
+        #print(attempts)
+        network_name = networks[0]
+        #print("Trying WLAN network... ", network_name)
+        try:
+            cfg = reconnect(wlan, network_name)
+            CONNECTED = True
+            print("Connected!")
             break
-    print(settings)
+        except Exception as e:
+            print(e)
+            networks.remove(network_name)
 
-print("Reading timetable from Google Spreadsheet...")
-sheet_id= "1LX25qDzaKKtRPmRFZ9h7ZoTu1UjYz7yCt85Wwz13dbk"
-sheet_name= "розклад"
-range_name= "B2:B19"
-read_sheet(sheet_id, sheet_name, range_name, print_range)
+    return cfg
 
+def read_google_spreadsheet_data(online=False):
+    is_connected = online == True
+    print("Reading timetable from Google Spreadsheet...")
+    sheet_id = SPREADSHEET_ID
+    sheet_name = timetable_sheet_name
+    range_name = timetable_range_name
+    try:
+        global timetable
+        timetable = read_sheet(sheet_id, sheet_name, range_name, load_timetable, online=is_connected)
+        print(timetable)
 
-print("Reading settings from Google Spreadsheet...")
-sheet_name= "налаштування"
-range_name= "A1:B50"
-read_sheet(sheet_id, sheet_name, range_name, print_settings)
+        print("Reading settings from Google Spreadsheet...")
+        sheet_name= settings_sheet_name
+        range_name= settings_range_name
+        global settings
+        settings = read_sheet(sheet_id, sheet_name, range_name, load_settings, online=is_connected)
+        print(settings)
+    except Exception as e:
+        read_google_spreadsheet_data(online=False)
+
+# OK: discovery of Wifi networks
+# TODO: read time from RTC clock if no internet
+# TODO: read timetable and settings from local disk if no internet
+# TODO: when to recheck internet / settings (same as frequency for re-reading timetable)?
+
+cfg = connect()
+sync_time()
+read_google_spreadsheet_data(is_connected())
 
 if True:
     timeout = 10
+    import urequests
+    import sys
+    
+    last_check_timestamp = utime.time()
+
     while True:
-        #        if wlan.isconnected():
+        refresh_interval = settings["check_updates_time"]
+        print("Time till refresh: ", refresh_interval - (utime.time() - last_check_timestamp), " seconds")
+        if utime.time() - refresh_interval > last_check_timestamp:
+            print("\n\n\nRefreshing data...\n\n\n")
+            last_check_timestamp = utime.time()
+            if not is_connected():
+                connect()
+            read_google_spreadsheet_data(is_connected())
+
         arr = time.localtime()
-        comment = my_ping['comment'] + "дата: {}".format(
-            "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]))
-        print("Current time: {}".format(
-            "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])))
+        dttm = localtime_to_dttm_string(arr)
+        comment = my_ping['comment'] + "дата: " + dttm
+        
+        print("Current time: ", dttm)
+        #print(timetable)
         for (hour, minute) in timetable:
-#            print("Checking: {}:{} vs {}:{}".format(arr[3], arr[4], hour, minute))
+            #print("Checking: {}:{} vs {}:{}".format(arr[3], arr[4], hour, minute))
             if arr[3]==hour:
                 if arr[4]==minute:
-                    led.on()
+                    led_pin.on()
                     ring_pin.on()
-                    print("ringing...")
+                    print("Ringing...", end='')
                     time.sleep(settings["ring_time"])
-                    led.off()
-                    print("ringing done...")
+                    led_pin.off()
+                    print("DONE")
                     ring_pin.off()
-                    time.sleep(60)
+                    n = 60
+                    print("Delay for {} seconds...".format(n), end='')
+                    time.sleep(n)
+                    print("DONE")
 
-        request_url = 'https://{}/ping.php?addr={}&comment={}'.format(ENDPOINT, my_ping["addr"], comment)
-        try:
-            led.on()
-            r = urequests.get(request_url)  # .json()
-            led.off()
-            timeout = 10
-            # res = requests.post(request_url, data = "{'addr':'foo'}") #.json()
-            print(r.content)
-            r.close()
-        except Exception as e:
-            led.off()
-            timeout = 10
-            print("Connection failure: ", "Is connected: {}, Status: {}\n".format(wlan.isconnected(), wlan.status()))
-            reconnect(wlan)
-        time.sleep(5)
-        arr = time.localtime()
-        print("Current time: {}".format(
-            "{}-{}-{} {}:{}:{}".format(arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])))
+        if PINGS_ON:
+            try:
+                led_pin.on()
+                request_url = 'https://{}/ping.php?addr={}&comment={}'.format(ENDPOINT, my_ping["addr"], comment)
+                r = urequests.get(request_url)  # .json()
+                led_pin.off()
+                timeout = 10
+                # res = requests.post(request_url, data = "{'addr':'foo'}") #.json()
+                print(r.content)
+                r.close()
+            except Exception as e:
+                led_pin.off()
+                timeout = 10
+                print("Connection failure: ", "Is connected: {}, Status: {}\n".format(wlan.isconnected(), wlan.status()))
+                connect()
+            time.sleep(5)
 
 print("it is over here...")
-# to do:
-# 1. read time table from https://docs.google.com/spreadsheets/d/1LX25qDzaKKtRPmRFZ9h7ZoTu1UjYz7yCt85Wwz13dbk/edit#gid=0
-# 2. control LED according to the time table
